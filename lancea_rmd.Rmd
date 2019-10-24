@@ -1,0 +1,1181 @@
+---
+title: "christian R markdown"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```title: "Vervet_UCPs"
+author: "Christian Gagnon"
+date: "9/27/2019"
+output: html_document
+---
+---
+title: "Vervet_UCP1"
+author: "Christian Gagnon"
+date: "1/6/2019"
+output: html_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Version Control: 
+vcfR 1.8.0
+adegenet 2.1.1
+ggplot2 3.1.1
+vegan 2.5-4
+poppr 2.8.2
+dplyr 0.8.0.1
+Matrix 1.2-17
+hierfstat 0.04-22
+reshape 0.8.8
+pwr 1.2-2
+pegas 0.11
+VariantAnnotation 1.28.13
+snpStats 1.32.0
+VariantAnnotation 1.28.13
+LDheatmap 0.99-5
+GenomicFeatures 1.34.8
+RMariaDB 1.0.6
+PopGenome 2.6.1
+rehh 2.0.4
+ips 0.0.7
+ape 5.3
+phangorn 2.5.3
+phytools 	0.6.60
+geiger 	2.0.6.1
+
+
+Introduction: Uncoupling proteins (UCPs) 1, 2 and 3 are all induced by fatty acids, and are known to perform important metabolic functions in humans. UCP1 is the most widely studied of the UCPs, and contributes to non-shivering thermogenesis and metobolic promotion of healthy body weight. The functions of UCP2 and UCP3 are less well known, but are hypothesized to have a role in resting energy expenditure, contributing more in lipid regulation as fuel than thermoregulation. The goal of this study analyzes population structure of UCP1, UCP2 and UCP3 in various sample populations of vervets (Chlorocebus), making up a Southern Expansion meta-population. We also aim to investigate potential signs of selection within the UCP1 region of two vervet subspecies. The data from these samples were broken up into five subpopulations: that of the Pygerythrus, Cynosuros, and Hilgerti sub-species. We further separated the Pygerythrus sub-species into three populations according to the regions from which the individuals were sampled. We hypothesize that there would be strong differentiation between populations sampled from areas geographically far from one another, and that there would be signs of selection in the UCP1 region of populations sampled from South Africa, where the environmental conditions are the most extreme. 
+
+
+## R Markdown for Chlorocebus pygerythrus
+
+###UCP1 Coordinates
+Hg38 UCP1 coordinates (UCSC)
+chr4:140,559,434-140,568,805
+Hg38 UCP1 coordinates (Ensembl)
+chr4:140,559,431-140,568,961
+Vervet UCP1 coordinates (UCSC convert)
+chr7:87,492,140-87,502,530
+Vervet UCP1 coordinates (Ensembl)
+chr7:87,492,195-87,502,665
+Vervet UCP1 +/- 10k 
+chr7:87,482,195-87,512,665
+Rhesus macaque 10k
+chr5:140,601,940-140,632,450
+
+###UCP2 Coordinates
+Hg38 UCP2 coordinates (UCSC)
+chr11:73,974,667-73,983,307
+Hg38 UCP2 coordinates (Ensembl)
+-------
+Vervet UCP2 coordinates (UCSC convert)
+chr1:65,238,307-65,246,886
+Vervet UCP1 coordinates (Ensembl)
+------
+Vervet UCP1 +/- 10k 
+chr1:65,228,307-65,256,886
+Rhesus macaque 10k
+chr14:65,991,409-66,067,785
+
+###UCP3 Coordinates
+Hg38 UCP3 coordinates (UCSC)
+chr11:74,000,281-74,009,435
+Hg38 UCP1 coordinates (Ensembl)
+------
+Vervet UCP1 coordinates (UCSC convert)
+chr1:65,269,611-65,279050
+Vervet UCP1 coordinates (Ensembl)
+------
+Vervet UCP1 +/- 10k 
+chr2:65,259,611-65,289,050
+Rhesus macaque 10k
+chr14:66,075,575-66,104,223
+
+###Unix code for obtaining UCP1, UCP2 and UCP3 regions. 
+
+We are going to look at three gene homologs: UCP1, UCP2, and UCP3. First, we need to isolate each of the three genes separately from the vervet genome data. Then, we will isolate them for the three taxa of the Southern Expansion populations: Cynosuros, Hilgerti, and Pygerythrus. We will also isolate the genes separately for cynosuros and pygerythrus for finding neutrality statistics to look for selection (we are not doing this for hilgerti because there are too few samples). Lastly, we will get a list of variants from each isolated gene to use for our linkage disequillibrium tests. We're going to do this all using the tabix module on the SCC: 
+
+```{bash}
+module load tabix
+module load vcftools
+#Download vervet .vcf and index to gatk directory
+wget https://vervetmonkeygmi.blob.core.windows.net/publicationdata/163_201701_UG_vervet_monkey_SNPs_all_chrom_beagle_shapeit.vcf.gz
+wget https://vervetmonkeygmi.blob.core.windows.net/publicationdata/163_201701_UG_vervet_monkey_SNPs_all_chrom_beagle_shapeit.vcf.gz.tbi
+#UCP1
+tabix -h  163_201701_UG_vervet_monkey_SNPs_all_chrom_beagle_shapeit.vcf.gz CAE7:87482195-87512665 | bgzip -c > ALL_UPC1.vcf.gz #isolate UCP1 region for all samples
+vcf-subset -c southernexpansion_list ALL_UPC1.vcf.gz | bgzip  -c > se_UCP1.vcf.gz #isolate only southern expansion samples
+#vcf-subset -c cynosuros_list ALL_UPC1.vcf.gz | bgzip  -c > cyn_UCP1.vcf.gz #isolate cynosuros samples for neutrality stats
+#vcf-subset -c pygerythrus_list ALL_UPC1.vcf.gz | bgzip  -c > pyg_UCP1.vcf.gz #isolate pygerythrus samples for neutrality stats
+bcftools query -f '%CHROM\t%POS\t%REF\t%ALT[\t%SAMPLE=%GT]\n' se_UCP1.vcf.gz -o se_UCP1_bcftoolsoutput.txt
+zgrep -v "^##" se_UCP1.vcf.gz | cut -f1-3 > se_UCP1_loci.txt #Get list of variant sites for LD
+#UCP2
+tabix -h  163_201701_UG_vervet_monkey_SNPs_all_chrom_beagle_shapeit.vcf.gz CAE1:65228307-65256886 | bgzip -c > ALL_UPC2.vcf.gz #isolate UCP2 region for all samples
+vcf-subset -c southernexpansion_list ALL_UPC2.vcf.gz | bgzip  -c > se_UCP2.vcf.gz #isolate only southern expansion samples
+vcf-subset -c cynosuros_list ALL_UPC2.vcf.gz | bgzip  -c > cyn_UCP2.vcf.gz #isolate cynosuros samples for neutrality stats
+vcf-subset -c pygerythrus_list ALL_UPC2.vcf.gz | bgzip  -c > pyg_UCP2.vcf.gz #isolate pygerythrus samples for neutrality stats
+bcftools query -f '%CHROM\t%POS\t%REF\t%ALT[\t%SAMPLE=%GT]\n' se_UCP2.vcf.gz -o se_UCP2_bcftoolsoutput.txt
+zgrep -v "^##" se_UCP2.vcf.gz | cut -f1-3 > UCP2_loci.txt #Get list of variant sites for LD
+#UCP3
+tabix -h  163_201701_UG_vervet_monkey_SNPs_all_chrom_beagle_shapeit.vcf.gz CAE2:65259611-65289050 | bgzip -c > ALL_UPC3.vcf.gz #isolate UCP3 region for all samples
+vcf-subset -c southernexpansion_list ALL_UPC3.vcf.gz | bgzip  -c > se_UCP3.vcf.gz #isolate only southern expansion samples
+vcf-subset -c cynosuros_list ALL_UPC3.vcf.gz | bgzip  -c > cyn_UCP3.vcf.gz #isolate cynosuros samples for neutrality stats
+vcf-subset -c pygerythrus_list ALL_UPC3.vcf.gz | bgzip  -c > pyg_UCP3.vcf.gz #isolate pygerythrus samples for neutrality stats
+bcftools query -f '%CHROM\t%POS\t%REF\t%ALT[\t%SAMPLE=%GT]\n' se_UCP3.vcf.gz -o se_UCP3_bcftoolsoutput.txt
+zgrep -v "^##" se_UCP3.vcf.gz | cut -f1-3 > UCP3_loci.txt #Get list of variant sites for LD
+```
+### Population Structure
+
+We will begin by making a DAPC plot to show differentiation at the taxonomic level (Cynosuros, Pygerythrus, and Hilgerti) as well as the population level (Cynosuros, Hilgerti, and then the regions Pygerythrus individuals were sampled from: Free State, KwaZulu-Natal, and Eastern Cape). We will also test the significane of the differentiation that these show by performing Adonis and AMOVA on the data.
+
+```{r}
+library(vcfR)
+library(adegenet)
+library(ggplot2)
+library(vegan)
+library(poppr)
+library(dplyr)
+```
+
+##UCP1
+```{r}
+#vervet VCF for UCP1 
+UCP1 <- read.vcfR("se_UCP1.vcf.gz", verbose = TRUE)
+#creating genind
+UCP1_genind <- vcfR2genind(UCP1, sep = "[|/]")
+#population data read in 
+pop.data <- read.table("Southernexpansion_panel.txt", sep = "\t", header = FALSE)
+colnames(pop.data) <- c("Sample", "Pop", "Region", "Country", "Taxon", "Population")
+#Checking that all the samples in the VCF and the population data frame are the same. Should be TRUE. 
+all(colnames(UCP1@gt)[-1] == pop.data$AccessID)
+#assigning pop data to genind
+pop(UCP1_genind) <- pop.data$Population
+#genlight object for PCA
+UCP1_genlight <- vcfR2genlight(UCP1)
+ 
+```
+
+PCA taxon level
+```{r}
+#assigning populationd data
+pop(UCP1_genlight) <- pop.data$Taxon
+pca <- glPca(UCP1_genlight, nf = 2)
+#Here's a graph of the eigenvalues (or, the principle components). This graph shows how much of the variation of the original dataset is kept with the PCA. This graph was used to determine the number of PCs to keep
+barplot(100*pca$eig/sum(pca$eig), col = heat.colors(50), main="PCA Eigenvalues")
+title(ylab="Percent of variance\nexplained", line = 2)
+title(xlab="Eigenvalues", line = 1)
+head(pca, n=6)
+#Now, we can graph the results with ggplot!
+#Creating a dataframe with pca scores, and assigning population data
+pca.scores <- as.data.frame(pca$scores)
+pca.scores$pop <- pop(UCP1_genlight)
+#ggplot
+p <- ggplot(pca.scores, aes(x=PC1, y=PC2, colour=pop)) + geom_point(size=2) + stat_ellipse(level = 0.95, size = 1) + geom_hline(yintercept = 0) + geom_vline(xintercept = 0) + theme_bw()
+p
+#Ignore the warning error. We see here that there are some outliers in our data. Will the DAPC show the same thing?
+#adonis
+adonis <- adonis(pca$scores ~ pop, data = pca.scores, method='eu', na.rm = TRUE)
+adonis
+```
+
+PCA sub-pop level
+
+```{r}
+#assigning populationd data
+pop(UCP1_genlight) <- pop.data$Population
+pca <- glPca(UCP1_genlight, nf = 2)
+#Here's a graph of the eigenvalues (or, the principle components). This graph shows how much of the variation of the original dataset is kept with the PCA. This graph was used to determine the number of PCs to keep
+barplot(100*pca$eig/sum(pca$eig), col = heat.colors(50), main="PCA Eigenvalues")
+title(ylab="Percent of variance\nexplained", line = 2)
+title(xlab="Eigenvalues", line = 1)
+head(pca, n=6)
+#Now, we can graph the results with ggplot!
+#Creating a dataframe with pca scores, and assigning population data
+pca.scores <- as.data.frame(pca$scores)
+pca.scores$pop <- pop(UCP1_genlight)
+#ggplot
+p <- ggplot(pca.scores, aes(x=PC1, y=PC2, colour=pop)) + geom_point(size=2) + stat_ellipse(level = 0.95, size = 1) + geom_hline(yintercept = 0) + geom_vline(xintercept = 0) + theme_bw() 
+p
+#Ignore the warning error. We see here that there are some outliers in our data. Will the DAPC show the same thing?
+#adonis
+adonis <- adonis(pca$scores ~ pop, data = pca.scores, method='eu', na.rm = TRUE)
+adonis
+```
+
+UCP1 DAPC
+
+```{r}
+dapc <- dapc(UCP1_genind, n.pca = 2, n.da = 2)
+dapc$grp
+#Plotting 
+scatter(dapc, cex = 2, legend = TRUE, clabel = F, posi.leg = "bottomleft", scree.pca = TRUE,
+        posi.pca = "topleft", cleg = 0.75)
+```
+
+We've seen a few things from looking at the PCAs and DAPC from UCP1. With the first graph, we see that C. pygerythrus is separating from C. hilgerti and C. cynosuros mainly along PC1 because of a single cluster of C. pygerythrus. When we look at the sub-populations of each species in a PCA, we see that the cluster of C. pygerythrus that is separating from the other two species is made up of two sub-populations: Free State and KwaZulu-Natal. This clustering significance is also shown by a significant Adonis P-value. In the DAPC however, we see the KwaZulu-Natal and Eastern Cape populations clustering apart from the rest. 
+
+## UCP2
+
+```{r}
+#vervet VCF for UCP2
+UCP2 <- read.vcfR("se_UCP2.vcf.gz", verbose = TRUE)
+#creating genind
+UCP2_genind <- vcfR2genind(UCP2, sep = "[|/]")
+#Checking that all the samples in the VCF and the population data frame are the same. Should be TRUE. 
+pop.data <- read.table("Southernexpansion_panel.txt", sep = "\t", header = FALSE)
+colnames(pop.data) <- c("Sample", "Pop", "Region", "Country", "Taxon", "Population")
+all(colnames(UCP2@gt)[-1] == pop.data$AccessID)
+#assigning pop data to genind
+pop(UCP2_genind) <- pop.data$Population
+#genlight object for PCA
+UCP2_genlight <- vcfR2genlight(UCP2)
+```
+
+PCA with taxon 
+
+```{r}
+pop(UCP2_genlight) <- pop.data$Taxon
+pca <- glPca(UCP2_genlight, nf = 2)
+#Here's a graph of the eigenvalues (or, the principle components). This graph shows how much of the variation of the original dataset is kept with the PCA. This graph was used to determine the number of PCs to keep
+barplot(100*pca$eig/sum(pca$eig), col = heat.colors(50), main="PCA Eigenvalues")
+title(ylab="Percent of variance\nexplained", line = 2)
+title(xlab="Eigenvalues", line = 1)
+#Now, we can graph the results with ggplot!
+#Creating a dataframe with pca scores, and assigning population data
+pca.scores <- as.data.frame(pca$scores)
+pca.scores$pop <- pop(UCP2_genlight)
+#ggplot
+p <- ggplot(pca.scores, aes(x=PC1, y=PC2, colour=pop)) + geom_point(size=2) + stat_ellipse(level = 0.95, size = 1) + geom_hline(yintercept = 0) + geom_vline(xintercept = 0) + theme_bw() 
+p
+#Ignore the warning error. We see here that there are some outliers in our data. Will the DAPC show the same thing?
+#adonis
+adonis(pca$scores ~ pop, data = pca.scores, method='eu', na.rm = TRUE)
+```
+
+PCA with pop data
+
+```{r}
+#assigning populationd data
+pop(UCP2_genlight) <- pop.data$Population
+pca <- glPca(UCP2_genlight, nf = 2)
+#Here's a graph of the eigenvalues (or, the principle components). This graph shows how much of the variation of the original dataset is kept with the PCA. This graph was used to determine the number of PCs to keep
+barplot(100*pca$eig/sum(pca$eig), col = heat.colors(50), main="PCA Eigenvalues")
+title(ylab="Percent of variance\nexplained", line = 2)
+title(xlab="Eigenvalues", line = 1)
+#Now, we can graph the results with ggplot!
+#Creating a dataframe with pca scores, and assigning population data
+pca.scores <- as.data.frame(pca$scores)
+pca.scores$pop <- pop(UCP2_genlight)
+#ggplot
+p <- ggplot(pca.scores, aes(x=PC1, y=PC2, colour=pop)) + geom_point(size=2) + stat_ellipse(level = 0.95, size = 1) + geom_hline(yintercept = 0) + geom_vline(xintercept = 0) + theme_bw() 
+p
+#Ignore the warning error. We see here that there are some outliers in our data. Will the DAPC show the same thing?
+#adonis
+adonis(pca$scores ~ pop, data = pca.scores, method='eu', na.rm = TRUE)
+```
+
+UCP2 DAPC
+
+```{r}
+dapc <- dapc(UCP2_genind, n.pca = 2, n.da = 2)
+#Plotting 
+scatter(dapc, cex = 2, legend = TRUE, clabel = F, posi.leg = "bottomleft", scree.pca = TRUE,
+        posi.pca = "topleft", cleg = 0.75)
+```
+
+For UCP2, we see again that the C. pygerythrus is separated from the other two species along the first PC. But when C. pygerythrus is broken down in to subspecies, there are visually no sub populations  that cluster independently, although the Adonis P-value is significant. The DAPC shows all the sub-populations as being spaced out along the first PC, which is a better visual indicator of significant genetic difference than the PCA. 
+
+## UCP3
+
+```{r}
+#vervet VCF for UCP3
+UCP3 <- read.vcfR("se_UCP3.vcf.gz", verbose = TRUE)
+#creating genind
+UCP3_genind <- vcfR2genind(UCP3, sep = "[|/]")
+#Checking that all the samples in the VCF and the population data frame are the same. Should be TRUE. 
+all(colnames(UCP3@gt)[-1] == pop.data$AccessID)
+#assigning pop data to genind
+pop(UCP3_genind) <- pop.data$Population
+#genlight object for PCA
+UCP3_genlight <- vcfR2genlight(UCP3)
+```
+
+PCA with taxon
+
+```{r}
+pop(UCP3_genlight) <- pop.data$Taxon
+pca <- glPca(UCP3_genlight, nf = 2)
+#Here's a graph of the eigenvalues (or, the principle components). This graph shows how much of the variation of the original dataset is kept with the PCA. This graph was used to determine the number of PCs to keep
+barplot(100*pca$eig/sum(pca$eig), col = heat.colors(50), main="PCA Eigenvalues")
+title(ylab="Percent of variance\nexplained", line = 2)
+title(xlab="Eigenvalues", line = 1)
+#Now, we can graph the results with ggplot!
+#Creating a dataframe with pca scores, and assigning population data
+pca.scores <- as.data.frame(pca$scores)
+pca.scores$pop <- pop(UCP3_genlight)
+#ggplot
+p <- ggplot(pca.scores, aes(x=PC1, y=PC2, colour=pop)) + geom_point(size=2) + stat_ellipse(level = 0.95, size = 1) + geom_hline(yintercept = 0) + geom_vline(xintercept = 0) + theme_bw() 
+p
+#Ignore the warning error. We see here that there are some outliers in our data. Will the DAPC show the same thing?
+#adonis
+adonis(pca$scores ~ pop, data = pca.scores, method='eu', na.rm = TRUE)
+```
+
+PCA with pop data
+
+```{r}
+#assigning populationd data
+pop(UCP3_genlight) <- pop.data$Population
+pca <- glPca(UCP3_genlight, nf = 2)
+#Here's a graph of the eigenvalues (or, the principle components). This graph shows how much of the variation of the original dataset is kept with the PCA. This graph was used to determine the number of PCs to keep
+barplot(100*pca$eig/sum(pca$eig), col = heat.colors(50), main="PCA Eigenvalues")
+title(ylab="Percent of variance\nexplained", line = 2)
+title(xlab="Eigenvalues", line = 1)
+#Now, we can graph the results with ggplot!
+#Creating a dataframe with pca scores, and assigning population data
+pca.scores <- as.data.frame(pca$scores)
+pca.scores$pop <- pop(UCP3_genlight)
+#ggplot
+p <- ggplot(pca.scores, aes(x=PC1, y=PC2, colour=pop)) + geom_point(size=2) + stat_ellipse(level = 0.95, size = 1) + geom_hline(yintercept = 0) + geom_vline(xintercept = 0) + theme_bw() 
+p
+#Ignore the warning error. We see here that there are some outliers in our data. Will the DAPC show the same thing?
+#adonis
+adonis(pca$scores ~ pop, data = pca.scores, method='eu', na.rm = TRUE)
+```
+
+UCP3 DAPC
+
+```{r}
+dapc <- dapc(UCP3_genind, n.pca = 2, n.da = 2)
+#Plotting 
+scatter(dapc, cex = 2, legend = TRUE, clabel = F, posi.leg = "bottomleft", scree.pca = TRUE,
+        posi.pca = "topleft", cleg = 0.75)
+```
+
+For UCP3, we again see that C. pygerythrus is somewhat divided from the other two populations along PC1, but there is more overlap and no visually significant clustering. We see the same in the divided sub-populations; Eastern Cape and KwaZulu-Natal are slightly separated from the rest of the sub-populations, but not much, although their ADONIS P-values are significant. The DAPC shows a similar clustering of Eastern Cape and KwaZulu-Natal away from the other sub-populations as well. 
+
+## AMOVA with UCP1
+
+```{r}
+#AMOVA test UCP1 using genlight (because genind assigns 0,1 binary to SNPs that doesnt work with this function)
+#remake genlight so we don't have assigned pop data
+UCP1_genlight <- vcfR2genlight(UCP1)
+UCP1_genlight
+#Now to assign strata and match the strata assignments to the individuals in our genlight
+strata(UCP1_genlight) <- pop.data[match(indNames(UCP1_genlight), pop.data$Sample), ] 
+#now looking at genlight we should see the strata columns we added
+UCP1_genlight
+#Now the amova with Population
+amova1 <- poppr.amova(UCP1_genlight, ~Population, clonecorrect = TRUE)
+amova1
+#significance testing with randtest 
+amova.test <- randtest(amova1) 
+plot(amova.test)
+amova.test
+#Trying now with different strata, taxon
+amova2 <- poppr.amova(UCP1_genlight, ~Taxon, clonecorrect = TRUE)
+amova2
+#significance testing 
+amova.test <- randtest(amova2) 
+plot(amova.test)
+amova.test
+```
+When we do AMOVA on UCP1 looking at molecular variance between sub-populations, we find that there is significant difference within samples and between populations, but there was no significant difference between samples. When we look at the molecular variance between the three Chlorocebus taxa using AMOVA, we find that there is significant difference within samples, between samples, and between taxa. 
+
+AMOVA with UCP2
+
+```{r}
+#AMOVA test UCP2 using genlight (because genind assigns 0,1 binary to SNPs that doesnt work with this function)
+#remake genlight so we don't have assigned pop data
+UCP2_genlight <- vcfR2genlight(UCP2)
+UCP2_genlight
+#Now to assign strata and match the strata assignments to the individuals in our genlight
+strata(UCP2_genlight) <- pop.data[match(indNames(UCP2_genlight), pop.data$Sample), ] 
+#now looking at genlight we should see the strata columns we added
+UCP2_genlight
+#Now the amova with Population
+amova1 <- poppr.amova(UCP2_genlight, ~Population, clonecorrect = TRUE)
+amova1
+#significance testing with randtest 
+amova.test <- randtest(amova1) 
+plot(amova.test)
+amova.test
+#Trying now with different strata, taxon
+amova2 <- poppr.amova(UCP2_genlight, ~Taxon, clonecorrect = TRUE)
+amova2
+#significance testing 
+amova.test <- randtest(amova2) 
+plot(amova.test)
+amova.test
+```
+Looking at the differences between sub-populations in UCP2, we see that there is significant molecular variance within the samples and between populations, but no significant variation between samples. However, looking at molecular variance between taxa, there is significant variance within samples, between samples, and between taxa. 
+
+
+AMOVA with UCP3
+
+```{r}
+#AMOVA test UCP3 using genlight (because genind assigns 0,1 binary to SNPs that doesnt work with this function)
+#remake genlight so we don't have assigned pop data
+UCP3_genlight <- vcfR2genlight(UCP3)
+UCP3_genlight
+#Now to assign strata and match the strata assignments to the individuals in our genlight
+strata(UCP3_genlight) <- pop.data[match(indNames(UCP3_genlight), pop.data$Sample), ] 
+#now looking at genlight we should see the strata columns we added
+UCP3_genlight
+#Now the amova with Population
+amova1 <- poppr.amova(UCP3_genlight, ~Population, clonecorrect = TRUE)
+amova1
+#significance testing with randtest 
+amova.test <- randtest(amova1) 
+plot(amova.test)
+amova.test
+#Trying now with different strata, taxon
+amova2 <- poppr.amova(UCP3_genlight, ~Taxon, clonecorrect = TRUE)
+amova2
+#significance testing 
+amova.test <- randtest(amova2) 
+plot(amova.test)
+amova.test
+```
+
+In our AMOVA using UCP3, we find that when we look at sub-populations there is significant molecular variation within samples and between populations, but no significant difference between samples. When we look at taxa, we find that there is significant molecular variation within samples, between samples, and between taxa. 
+
+### Fst between populations 
+
+We are going to find the fixation index (Fst) pairwise between each population to further support the population differentiation that we found in our DAPC and PCA. We will use the package hierfstat to find the statistic, but first we will use adegenet to assign a population to each sample.
+
+Convert the vcf of UCP1 data into a GENIND object.
+
+```{r}
+UCP1vcfR <- read.vcfR("~/Desktop/594_final/se_UCP1.vcf.gz", verbose = TRUE) #Read in data
+UCP1_genind <- vcfR2genind(UCP1vcfR, sep = "[|/]") #convert to GENIND
+```
+
+Now we have our object, but it doesn't have the population info assigned to each sample. This time, we are breaking up the Free State region's population into north and south. The simplest way to add population parameters to the 'vcf' R file is to run this code on your GENIND object (which has a slot for population information):
+```{r}
+library(adegenet)
+library(hierfstat)
+pop(UCP1_genind)<-as.factor(c("cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","FS North","FS North","FS North","FS South","FS South","FS South","FS South","FS South","FS South","FS South","FS South","FS South","FS South","FS South","FS North","FS North","FS North","FS North","FS North","FS North","KZN","KZN","KZN","KZN","KZN","KZN","KZN","KZN","KZN","KZN","KZN","KZN","KZN","KZN","KZN","VSAI3005","FS North","Eastern Cape","Eastern Cape","Eastern Cape","Eastern Cape","Eastern Cape","Eastern Cape","Eastern Cape","Eastern Cape","Eastern Cape","Eastern Cape","Eastern Cape","Eastern Cape","hilgerti","hilgerti","hilgerti","hilgerti","cynosuros","cynosuros","hilgerti","hilgerti"))
+fstat(UCP1_genind) # calculating Fst
+```
+
+With VSAI3005 included in the  EC pop
+```{r}
+library(adegenet)
+pop(UCP1_genind)<-as.factor(c("cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","FS","FS","FS","FS","FS","FS","FS","FS","FS","FS","FS","FS","FS","FS","FS","FS","FS","FS","FS","FS","KZN","KZN","KZN","KZN","KZN","KZN","KZN","KZN","KZN","KZN","KZN","KZN","KZN","KZN","KZN","Eastern Cape","FS","Eastern Cape","Eastern Cape","Eastern Cape","Eastern Cape","Eastern Cape","Eastern Cape","Eastern Cape","Eastern Cape","Eastern Cape","Eastern Cape","Eastern Cape","Eastern Cape","hilgerti","hilgerti","hilgerti","hilgerti","cynosuros","cynosuros","hilgerti","hilgerti"))
+library(hierfstat)
+fstat(UCP1_genind) # calculating Fst
+```
+
+This gives us Fst all of the populations combined (so that means that about 22% of the variants in UCP1 are not shared between all individuals and about 19% are not shared between populations), but this doesn't tell us which populations are more or less different. Let's look at the pairwise Fst between each population: 
+```{r}
+UCP1Fst <- pairwise.fst(UCP1_genind[1:73,])
+UCP1Fst
+```
+
+Now that we have that, we can create a heatmap to visualize it using ggplot2. The output that hierfstat gave us is a "dist" class file, so first we will use reshape2 to make it a matrix. 
+```{r}
+library(reshape2)
+UCP1Fst <- as.matrix(UCP1Fst)
+UCP1Fst
+colnames(UCP1Fst) <- c("Cynosuros", "Free State", "KwaZulu-Natal", "Eastern Cape", "Hilgerti") #rename columns from numbers to population names. 
+rownames(UCP1Fst) <- c("Cynosuros", "Free State", "KwaZulu-Natal", "Eastern Cape", "Hilgerti") #rename rows from numbers to population names. 
+UCP1Fst
+melted_fst <- melt(UCP1Fst) #melt the data to be used for a heatmap
+melted_fst
+library(ggplot2)
+ggplot(data = melted_fst, aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile()
+get_lower_tri<-function(UCP1Fst){
+    UCP1Fst[lower.tri(UCP1Fst)] <- NA
+    return(UCP1Fst)
+}
+#this looks okay, but we'd rather not have the redundance of the same values being shown twice. So we will just use the lower half of the matrix:
+lower_tri <- get_lower_tri(UCP1Fst) #Fill half of the repeated values with "NA's"
+lower_tri
+melted_UCP1 <- melt(lower_tri, na.rm = TRUE) #melt this half of the matrix
+ggplot(data = melted_UCP1, aes(Var2, Var1, fill = value))+
+ geom_tile(color = "white")+
+ scale_fill_gradient2(low = "white", high = "red", mid = "blue", 
+   midpoint = 0, limit = c(0,1), space = "Lab", 
+   name="Fst") +
+  theme_minimal()+ 
+ theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+    size = 12, hjust = 1))+
+ coord_fixed()
+```
+Fst matrices and heatmap showing differentiation of UCP1 between Cynosuros, Hilgerti, Free State, Eastern Cape and KwaZulu-Natal populations. Our pairwise Fst matrix and heatmap shows us various levels of differentiation between different populations. For example, Eastern Cape and Kwazulu-Natal populaitons seem to have very few differences in their UCP1 regions, while the Hilgerti and Eastern Cape populations are the most different. This makes sense, considering Eastern Cape and Kwazulu-Natal are geographically close and environmentally similar, while the Hilgerti population samples were collected in Botswana, which is environmentally different from Eastern South Africa. When comparing these results to those of the PCA and DAPC, the latter observation is not extremely prevelant in those population structure figures. 
+
+Now let's do it for the other UCPs:
+
+UCP2:
+```{r}
+UCP2 <- read.vcfR("se_UCP2.vcf.gz", verbose = TRUE) #Read in data
+UCP2_genind <- vcfR2genind(UCP2, sep = "[|/]") #convert to GENIND
+pop(UCP2_genind)<-as.factor(c("cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","FS North","FS North","FS North","FS South","FS South","FS South","FS South","FS South","FS South","FS South","FS South","FS South","FS South","FS South","FS North","FS North","FS North","FS North","FS North","FS North","KZN","KZN","KZN","KZN","KZN","KZN","KZN","KZN","KZN","KZN","KZN","KZN","KZN","KZN","KZN","Eastern Cape","FS North","Eastern Cape","Eastern Cape","Eastern Cape","Eastern Cape","Eastern Cape","Eastern Cape","Eastern Cape","Eastern Cape","Eastern Cape","Eastern Cape","Eastern Cape","Eastern Cape","hilgerti","hilgerti","hilgerti","hilgerti","cynosuros","cynosuros","hilgerti","hilgerti"))
+fstat(UCP2_genind) # overall Fst
+UCP2Fst <- pairwise.fst(UCP2_genind[1:73,]) # calculate pairwise values
+UCP2Fst
+```
+```{r}
+library(reshape2)
+UCP2Fst <- as.matrix(UCP2Fst)
+UCP2Fst
+colnames(UCP2Fst) <- c("Cynosuros", "Free State-North","Free State-South","KwaZulu-Natal", "Eastern Cape", "Hilgerti") #rename columns from numbers to population names. 
+rownames(UCP2Fst) <- c("Cynosuros", "Free State-North","Free State-South","KwaZulu-Natal", "Eastern Cape", "Hilgerti") #rename rows from numbers to population names. 
+UCP2Fst
+melted_fst2 <- melt(UCP2Fst) #melt the data to be used for a heatmap
+melted_fst2
+library(ggplot2)
+ggplot(data = melted_fst2, aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile()
+get_lower_tri<-function(UCP2Fst){
+    UCP2Fst[lower.tri(UCP2Fst)] <- NA
+    return(UCP2Fst)
+}
+#this looks okay, but we'd rather not have the redundance of the same values being shown twice. So we will just use the lower half of the matrix:
+lower_tri <- get_lower_tri(UCP2Fst) #Fill half of the repeated values with "NA's"
+lower_tri
+melted_UCP2 <- melt(lower_tri, na.rm = TRUE) #melt this half of the matrix
+ggplot(data = melted_UCP2, aes(Var2, Var1, fill = value))+
+ geom_tile(color = "white")+
+ scale_fill_gradient2(low = "white", high = "red", mid = "blue", 
+   midpoint = 0, limit = c(0,1), space = "Lab", 
+   name="Fst") +
+  theme_minimal()+ 
+ theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+    size = 12, hjust = 1))+
+ coord_fixed()
+```
+Fst matrices and heatmap showing differentiation of UCP2 between Cynosuros, Hilgerti, Free State, Eastern Cape and KwaZulu-Natal populations. The overall differentiation between populations and individuals sampled from the five sites is higher in the UCP2 region. The populations that are most similar are, again, Eastern Cape and Kwazulu-Natal, while the most differentiated are Hilgerti and Free State populations. 
+
+UCP3:
+```{r}
+UCP3 <- read.vcfR("se_UCP3.vcf.gz", verbose = TRUE) #Read in data
+UCP3_genind <- vcfR2genind(UCP3, sep = "[|/]") #convert to GENIND
+pop(UCP3_genind)<-as.factor(c("cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","FS North","FS North","FS North","FS South","FS South","FS South","FS South","FS South","FS South","FS South","FS South","FS South","FS South","FS South","FS North","FS North","FS North","FS North","FS North","FS North","KZN","KZN","KZN","KZN","KZN","KZN","KZN","KZN","KZN","KZN","KZN","KZN","KZN","KZN","KZN","Eastern Cape","FS North","Eastern Cape","Eastern Cape","Eastern Cape","Eastern Cape","Eastern Cape","Eastern Cape","Eastern Cape","Eastern Cape","Eastern Cape","Eastern Cape","Eastern Cape","Eastern Cape","hilgerti","hilgerti","hilgerti","hilgerti","cynosuros","cynosuros","hilgerti","hilgerti"))
+fstat(UCP3_genind) # overall Fst
+UCP3Fst <- pairwise.fst(UCP3_genind[1:73,]) # calculate pairwise values
+UCP3Fst
+```
+
+Fst matrices and heatmap showing differentiation of UCP1 between Cynosuros, Hilgerti, Free State, Eastern Cape and KwaZulu-Natal populations. Our pairwise Fst matrix and heatmap shows us various levels of differentiation between different populations. For example, Eastern Cape and Kwazulu-Natal populaitons seem to have very few differences in their UCP1 regions, while the Hilgerti and Eastern Cape populations are the most different. This makes sense, considering Eastern Cape and Kwazulu-Natal are geographically close and environmentally similar, while the Hilgerti population samples were collected in Botswana, which is environmentally different from Eastern South Africa. When comparing these results to those of the PCA and DAPC, the latter observation is not extremely prevelant in those population structure figures. 
+
+Now let's do it for the other UCPs:
+
+UCP2:
+```{r}
+UCP2 <- read.vcfR("se_UCP2.vcf.gz", verbose = TRUE) #Read in data
+UCP2_genind <- vcfR2genind(UCP2, sep = "[|/]") #convert to GENIND
+pop(UCP2_genind)<-as.factor(c("cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","cynosuros","FS North","FS North","FS North","FS South","FS South","FS South","FS South","FS South","FS South","FS South","FS South","FS South","FS South","FS South","FS North","FS North","FS North","FS North","FS North","FS North","KZN","KZN","KZN","KZN","KZN","KZN","KZN","KZN","KZN","KZN","KZN","KZN","KZN","KZN","KZN","Eastern Cape","FS North","Eastern Cape","Eastern Cape","Eastern Cape","Eastern Cape","Eastern Cape","Eastern Cape","Eastern Cape","Eastern Cape","Eastern Cape","Eastern Cape","Eastern Cape","Eastern Cape","hilgerti","hilgerti","hilgerti","hilgerti","cynosuros","cynosuros","hilgerti","hilgerti"))
+fstat(UCP2_genind) # overall Fst
+UCP2Fst <- pairwise.fst(UCP2_genind[1:73,]) # calculate pairwise values
+UCP2Fst
+```
+
+```{r}
+library(reshape2)
+UCP3Fst <- as.matrix(UCP3Fst)
+UCP3Fst
+colnames(UCP3Fst) <- c("Cynosuros", "Free State-North","Free State-South","KwaZulu-Natal", "Eastern Cape", "Hilgerti") #rename columns from numbers to population names. 
+rownames(UCP3Fst) <- c("Cynosuros", "Free State-North","Free State-South","KwaZulu-Natal", "Eastern Cape", "Hilgerti") #rename rows from numbers to population names. 
+UCP3Fst
+melted_fst3 <- melt(UCP3Fst) #melt the data to be used for a heatmap
+melted_fst3
+library(ggplot2)
+ggplot(data = melted_fst3, aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile()
+get_lower_tri<-function(UCP3Fst){
+    UCP3Fst[lower.tri(UCP3Fst)] <- NA
+    return(UCP3Fst)
+}
+#this looks okay, but we'd rather not have the redundance of the same values being shown twice. So we will just use the lower half of the matrix:
+lower_tri <- get_lower_tri(UCP3Fst) #Fill half of the repeated values with "NA's"
+lower_tri
+melted_UCP1 <- melt(lower_tri, na.rm = TRUE) #melt this half of the matrix
+ggplot(data = melted_UCP1, aes(Var2, Var1, fill = value))+
+ geom_tile(color = "white")+
+ scale_fill_gradient2(low = "white", high = "red", mid = "blue", 
+   midpoint = 0, limit = c(0,1), space = "Lab", 
+   name="Fst") +
+  theme_minimal()+ 
+ theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+    size = 12, hjust = 1))+
+ coord_fixed()
+```
+Fst matrices and heatmap showing differentiation of UCP3 between Cynosuros, Hilgerti, Free State, Eastern Cape and KwaZulu-Natal populations. In coordinance with the DAPC and PCA, the overall Fst between populations and individuals show the most genetic similarity in the UCP3 region. Eastern Cape and KwaZulu-Natal regions continue to be the most similar, with Eastern cape and Hilgerti populations being the most differentiated. 
+
+
+###Hardy-Weinberg Equilibrium
+Now, we are going to zoom in on UCP1 and look at the variants within the region. First, we will see if these variants are in HWE. To do so, first we can go to our *R* space and run a quick power test to see if 73 samples is even enough to see anything:
+
+chi-squared test to check if sample size is adequate 
+```{r,eval=F,echo=T}
+library(pwr)
+pwr.chisq.test(w = 0.5, df = 1, sig.level = 0.05, power=0.95)
+```
+
+This analysis is saying that we'd need a pretty large effect size (.5) to use 53 samples. We have 73, and after playing around with the effect size this seems like the best option.
+
+Let's take a look at Hardy Weinberg test results using outputs given to us through VCFtools: 
+
+```{bash, eval = F, echo = T, class.source="sccCode"}
+module load vcftools
+gunzip <se_UCP1.vcf.gz> se_UCP1.vcf
+vcftools --vcf se_UCP1.vcf --hardy --out se_UCP1
+less se_UCP1.hwe
+```
+
+Analysis in R:
+```{r}
+library(vcfR)
+library(pegas)
+#UCP1
+UCP1 <- read.vcfR("~/Desktop/594_final/se_UCP1.vcf.gz", verbose = TRUE) #Read in data
+pegas.UCP1 <- vcfR2genind(UCP1, sep = "[|/]") #Use pegas to perform analysis
+HWE <- hw.test(pegas.UCP1, B = 0) #copy output to new file called HWE
+HWE #View output
+```
+
+###Linkage Disequilibrium
+
+Packages:
+```{r}
+install.packages("LDheatmap")
+install.packages("VariantAnnotation")
+if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+BiocManager::install("snpStats", version = "3.8")
+#install.packages("snpStats")
+```
+
+
+Analysis:
+```{r}
+library(Matrix)
+library(snpStats)
+library(VariantAnnotation)
+library(LDheatmap)
+library(GenomicFeatures)
+library(RMariaDB)
+txdb <- makeTxDbFromUCSC(genome="chlSab2", tablename="ensGene") #Create txdb for chlSab2
+vcfbig <- readVcf("se_UCP1.vcf.gz", "txdb") #align data with vervet reference genome
+ALLmatrix <- genotypeToSnpMatrix(vcfbig)
+ALLmatrix
+LD <- ld(ALLmatrix$genotypes, depth = 200, stats = "R.squared")
+head(LD)
+LD
+```
+
+Heat Mapper:
+```{r}
+cols = colorRampPalette(c("yellow", "red"))(10)
+image(LD, lwd = 0, cuts= 9, col.regions=cols, colorkey=TRUE)
+positions <- c(87478672,87478917,87478957,87479112,87479144,87479170,87479175,87479261,87479344,87479346,87479578,87479598,87479623,87479624,87479700,87479713,87479764,87479791,87479845,87479942,87479962,87480091,87480092,87480247,87480339,87480460,87480482,87480523,87480589,87480601,87481008,87481040,87481098,87481185,87481247,87481250,87481477,87481651,87481817,87481937,87481944,87482171,87482219,87482224,87482246,87482272,87482418,87482499,87482506,87482518,87482566,87482570,87482580,87482583,87482631,87482817,87482830,87482931,87483074,87483454,87483557,87483580,87483627,87483659,87483701,87483703,87483771,87483856,87483906,87483916,87483917,87483956,87483981,87484123,87484131,87484141,87484171,87484184,87484185,87484191,87484196,87484298,87484346,87484403,87484460,87484480,87484515,87484544,87484595,87484667,87484729,87484816,87484818,87484881,87484912,87485006,87485023,87485113,87485123,87485126,87485127,87485145,87485198,87485352,87485425,87485426,87485544,87485572,87485707,87485708,87485782,87485802,87485936,87486002,87486040,87486106,87486129,87486132,87486192,87486232,87486306,87486438,87486540,87486640,87486791,87486856,87486893,87487107,87487212,87487288,87487309,87487379,87487476,87487530,87487531,87487547,87487603,87487637,87487657,87487681,87487774,87487819,87487889,87488011,87488108,87488131,87488141,87488157,87488226,87488227,87488246,87488247,87488284,87488288,87488289,87488308,87488373,87488414,87488473,87488481,87488502,87488513,87488514,87488609,87488755,87488791,87488821,87488890,87488906,87488919,87488983,87489053,87489094,87489127,87489288,87489310,87489380,87489406,87489484,87489516,87489577,87489582,87489651,87489671,87489758,87489780,87489909,87489990,87490020,87490023,87490059,87490209,87490242,87490244,87490304,87490338,87490345,87490432,87490457,87490494,87490563,87490584,87490600,87490669,87490678,87490726,87490750,87490764,87490859,87490876,87490902,87490961,87490964,87491029,87491127,87491132,87491185,87491267,87491318,87491371,87491429,87491434,87491480,87491494,87491534,87491618,87491656,87491684,87491726,87491739,87491796,87491801,87491914,87491946,87491992,87492011,87492020,87492043,87492115,87492132,87492144,87492145,87492201,87492261,87492339,87492384,87492403,87492424,87492537,87492563,87492569,87492579,87492612,87492667,87492739,87492801,87492842,87492898,87492907,87492922,87492949,87492998,87493023,87493031,87493125,87493148,87493153,87493215,87493237,87493263,87493283,87493291,87493379,87493469,87493472,87493519,87493569,87493613,87493664,87493744,87493753,87493830,87493837,87493854,87493882,87493885,87493888,87493967,87493997,87494045,87494126,87494157,87494177,87494188,87494216,87494226,87494338,87494339,87494341,87494342,87494406,87494423,87494503,87494508,87494576,87494632,87494638,87494674,87494842,87494859,87494861,87494916,87495040,87495094,87495117,87495209,87495213,87495244,87495288,87495371,87495400,87495483,87495511,87495557,87495566,87495638,87495673,87495675,87495720,87495756,87495918,87496052,87496059,87496184,87496254,87496359,87496412,87496425,87496460,87496622,87496650,87496753,87496822,87496860,87496865,87496877,87496889,87496897,87496950,87496956,87496971,87497024,87497044,87497047,87497115,87497190,87497200,87497259,87497358,87497419,87497423,87497427,87497467,87497483,87497539,87497546,87497583,87497753,87497809,87497815,87497848,87497910,87497920,87498023,87498068,87498167,87498192,87498326,87498342,87498397,87498450,87498470,87498487,87498501,87498511,87498532,87498564,87498575,87498578,87498611,87498614,87498628,87498633,87498652,87498662,87498678,87498681,87498695,87498769,87498903,87498904,87498981,87499037,87499064,87499099,87499115,87499116,87499128,87499152,87499154,87499168,87499175,87499179,87499180,87499205,87499292,87499295,87499303,87499326,87499356,87499382,87499434,87499439,87499443,87499459,87499485,87499618,87499641,87499761,87499800,87499801,87499818,87499828,87499840,87499854,87499902,87500036,87500045,87500110,87500111,87500152,87500233,87500305,87500306,87500313,87500323,87500325,87500408,87500413,87500454,87500458,87500545,87500558,87500605,87500606,87500611,87500623,87500632,87500650,87500651,87500686,87500780,87500821,87500871,87500927,87500934,87500935,87500951,87500984,87501102,87501183,87501221,87501233,87501339,87501420,87501475,87501486,87501513,87501527,87501535,87501560,87501581,87501599,87501638,87501662,87501699,87501756,87501805,87501834,87501898,87501903,87501904,87501910,87501922,87501946,87501948,87501955,87501974,87501983,87502069,87502083,87502085,87502127,87502141,87502149,87502154,87502235,87502245,87502246,87502255,87502264,87502276,87502281,87502305,87502325,87502347,87502374,87502418,87502422,87502428,87502449,87502469,87502477,87502481,87502522,87502545,87502546,87502551,87502573,87502582,87502594,87502619,87502635,87502808,87502825,87502835,87502857,87502861,87502884,87502929,87502936,87502952,87502973,87502987,87503018,87503019,87503072,87503092,87503134,87503159,87503191,87503236,87503237,87503260,87503318,87503346,87503365,87503369,87503387,87503426,87503444,87503446,87503463,87503470,87503553,87503573,87503604,87503700,87503757,87503770,87503782,87503870,87503880,87503905,87503907,87503952,87503971,87503973,87504003,87504068,87504114,87504115,87504157,87504169,87504220,87504262,87504294,87504295,87504308,87504323,87504352,87504385,87504417,87504421,87504466,87504476,87504558,87504637,87504677,87504718,87504776,87504799,87504850,87504919,87504922,87504930,87504941,87505031,87505032,87505104,87505191,87505214,87505238,87505279,87505287,87505333,87505343,87505368,87505393,87505415,87505469,87505523,87505552,87505553,87505615,87505638,87505646,87505682,87505720,87505737,87505740,87505759,87505825,87505867,87505906,87505945,87505953,87505964,87506003,87506004,87506011,87506019,87506020,87506024,87506090,87506103,87506114,87506123,87506148,87506196,87506197,87506217,87506277,87506319,87506323,87506349,87506382,87506407,87506414,87506433,87506506,87506508,87506541,87506543,87506548,87506571,87506597,87506633,87506974,87507031,87507047,87507048,87507051,87507075,87507082,87507083,87507132,87507140,87507171,87507194,87507221,87507275,87507384,87507385,87507426,87507429,87507430,87507439,87507475,87507478,87507521,87507524,87507536,87507540,87507543,87507549,87507567,87507568,87507589,87507605,87507694,87507706,87507713,87507771,87507830,87507839,87507860,87507871,87507963,87507982,87508091,87508112,87508125,87508130,87508154,87508167,87508195,87508234,87508253,87508268,87508299,87508415,87508426,87508439,87508482,87508500,87508502,87508541,87508626,87508643,87508656,87508745,87508757,87508776,87508823,87508825,87508854,87508869,87508901,87508938,87508974,87509036,87509037,87509041,87509044,87509057,87509058,87509061,87509066,87509085,87509114,87509129,87509222,87509235,87509248,87509258,87509275,87509282,87509311,87509317,87509334,87509439,87509446,87509464,87509500,87509510,87509548,87509553,87509558,87509569,87509586,87509587,87509588,87509608,87509613,87509647,87509686,87509730,87509745,87509754,87509812,87509817,87509842,87509924,87509937,87509950,87509970,87509971,87509975,87509989,87510003,87510035,87510042,87510046,87510051,87510061,87510062,87510067,87510098,87510104,87510125,87510126,87510134,87510165,87510213,87510222,87510279,87510293,87510361,87510399,87510523,87510540,87510598,87510688,87510719,87510725,87510752,87510756,87510793,87510842,87510935,87510973,87511007,87511042,87511043,87511092,87511112,87511116,87511130,87511136,87511189,87511328,87511342,87511434,87511456,87511457,87511493,87511626,87511724,87511777,87511788,87511813,87511817,87511990,87511993,87511999,87512099,87512132,87512265,87512266,87512331,87512381,87512399,87512448,87512452,87512460,87512465,87512470,87512499,87512508,87512515,87512525,87512545,87512588,87512605,87512621)
+allheatmapr <- LDheatmap(ALLmatrix$genotypes,
+                           genetic.distances=positions,
+                           distances="physical",
+                           LDmeasure="r",
+                           title="Pairwise LD with R^2",
+                           add.map=TRUE, add.key=TRUE,
+                           geneMapLocation=0.15,
+                           SNP.name=c("87493148"),
+                           color=NULL, newpage=TRUE,
+                           name="ldheatmap")
+allheatmapD <- LDheatmap(ALLmatrix$genotype,
+                           genetic.distances=positions,
+                           distances="physical",
+                           LDmeasure="D",
+                           title="Pairwise LD with D'",
+                           add.map=TRUE, add.key=TRUE,
+                           geneMapLocation=0.15,
+                           SNP.name=c("87493148"),
+                           color=NULL, newpage=TRUE,
+                           name=ldheatmap)
+View(allheatmapr$LDmatrix)
+View(allheatmapD$LDmatrix)
+```
+Results of the the Linkage analysis are not supper convincing. We ran into trouble mapping the linkage to the vervet reference genome. However the analysis shows a hot spot of linkage on the 5' end of our UCP1 region. Is this an important regulatory region? It does not seem to overlap with exoninc regions of the gene.
+
+###Neutrality statistics
+
+First, we will look at Tajima's D. This tests whether mutations in the UCP regions in a population are following or violating the assumptions of neutrality models. If they are not, this implies selection is acting on them. When D is close to zero, there are no alleles over or under represented, meaning they are neutral. If D is negative, this implies purifying selection, while if D is positive, the population is experiencing positive selection on the region. 
+
+To do this in R, we will use the tajima function in the pegas package.
+```{r}
+library(pegas)
+library(vcfR)
+```
+
+First, we will do it for our Cynosuros individuals: 
+```{r}
+UCP1cyn <- read.vcfR("~/Desktop/594_final/cyn_UCP1.vcf.gz", verbose = TRUE) #read in data
+UCP1dna <- vcfR2DNAbin(UCP1cyn) #create DNAbin object to be used by pegas
+UCP1dna
+tajima1 <- tajima.test(UCP1dna)
+tajima1
+UCP2cyn <- read.vcfR("~/Desktop/594_final/cyn_UCP2.vcf.gz", verbose = TRUE)
+UCP2dna <- vcfR2DNAbin(UCP2cyn)
+UCP2dna
+tajima2 <- tajima.test(UCP2dna)
+tajima2
+UCP3cyn <- read.vcfR("~/Desktop/594_final/cyn_UCP3.vcf.gz", verbose = TRUE)
+UCP3dna <- vcfR2DNAbin(UCP3)
+UCP3dna
+tajima3 <- tajima.test(UCP3dna)
+tajima3
+```
+Tajima's D for UCP1 is strongly negative, meaning that there is selection against it
+Then for Pygerythrus:
+```{r}
+UCP1 <- read.vcfR("~/Desktop/594_final/pyg_UCP1.vcf.gz", verbose = TRUE)
+UCP1dna <- vcfR2DNAbin(UCP1)
+UCP1dna
+tajima1 <- tajima.test(UCP1dna)
+tajima1
+UCP2 <- read.vcfR("~/Desktop/594_final/pyg_UCP2.vcf.gz", verbose = TRUE)
+UCP2dna <- vcfR2DNAbin(UCP2)
+UCP2dna
+tajima2 <- tajima.test(UCP2dna)
+tajima2
+UCP3 <- read.vcfR("~/Desktop/594_final/pyg_UCP3.vcf.gz", verbose = TRUE)
+UCP3dna <- vcfR2DNAbin(UCP3)
+UCP3dna
+tajima3 <- tajima.test(UCP3dna)
+tajima3
+```
+
+Using vcftools: 
+```{bash}
+# Cynosuros
+#UCP1
+vcftools --gzvcf cyn_UCP1.vcf.gz --TajimaD 500 # We chose 500 as the window size 
+mv out.Tajima.D cynUCP1.Tajima.D #rename the output file 
+mv out.log cynUCP1TD.log #rename log file 
+#UCP2
+vcftools --gzvcf cyn_UCP2.vcf.gz --TajimaD 500
+mv out.Tajima.D cynUCP2.Tajima.D
+mv out.log cynUCP2TD.log
+#UCP3
+vcftools --gzvcf cyn_UCP3.vcf.gz --TajimaD 500
+mv out.Tajima.D cynUCP3.Tajima.D
+mv out.log cynUCP3TD.log
+# Pygerythrus
+#UCP1
+vcftools --gzvcf pyg_UCP1.vcf.gz --TajimaD 500 # We chose 500 as the window size 
+mv out.Tajima.D pygUCP1.Tajima.D #rename the output file 
+mv out.log pygUCP1TD.log #rename log file 
+#UCP2
+vcftools --gzvcf pyg_UCP2.vcf.gz --TajimaD 500
+mv out.Tajima.D pygUCP2.Tajima.D
+mv out.log pygUCP2TD.log
+#UCP3
+vcftools --gzvcf pyg_UCP3.vcf.gz --TajimaD 500
+mv out.Tajima.D pygUCP3.Tajima.D
+mv out.log pygUCP3D.log
+```
+
+FU and Li's D and F statistic are a little similar in that anything deviating from 0 is a violation of neutrality. The D statistic is based on the difference between the number of private mutations in the sample and the total number of mutations. The F statistic is based on the difference between private mutations and average number of nucleotide differences between sequence pairs. 
+
+Packages:
+```{r}
+library(vcfR)
+library(PopGenome)
+```
+Pygerythrus
+```{r}
+UCP1 <- read.vcfR("~/Desktop/final/pyg_UCP1.vcf.gz", verbose = TRUE)
+UCP1dna <- vcfR2DNAbin(UCP1)
+UCP1dna
+tajima <- tajima.test(UCP1dna)
+tajima
+UCP2 <- read.vcfR("~/Desktop/final/pyg_UCP2.vcf.gz", verbose = TRUE)
+UCP2dna <- vcfR2DNAbin(UCP2)
+UCP2dna
+tajima <- tajima.test(UCP2dna)
+tajima
+UCP3 <- read.vcfR("~/Desktop/final/pyg_UCP3.vcf.gz", verbose = TRUE)
+UCP3dna <- vcfR2DNAbin(UCP3)
+UCP3dna
+tajima <- tajima.test(UCP3dna)
+tajima
+```
+
+Cynosuros
+```{r}
+UCP1 <- read.vcfR("~/Desktop/final/cyn_UCP1.vcf.gz", verbose = TRUE)
+UCP1dna <- vcfR2DNAbin(UCP1)
+UCP1dna
+tajima <- tajima.test(UCP1dna)
+tajima
+UCP2 <- read.vcfR("~/Desktop/final/cyn_UCP2.vcf.gz", verbose = TRUE)
+UCP2dna <- vcfR2DNAbin(UCP2)
+UCP2dna
+tajima <- tajima.test(UCP2dna)
+tajima
+UCP3 <- read.vcfR("~/Desktop/final/cyn_UCP3.vcf.gz", verbose = TRUE)
+UCP3dna <- vcfR2DNAbin(UCP3)
+UCP3dna
+tajima <- tajima.test(UCP3dna)
+tajima
+```
+With these values, we see that the Southern Expansion as one large population is close to neutrality: none of the statistics are strongly positive. However, Fu and Li's D and F are strongly positive in both the Cynosuros and Pygerythrus. This means that there is an excess of old variants in the population, and very few uniqu variants, implying that selection likely occurred for these ancestral variants in the past. The reason we do not see this in the whole Southern Expansion analysis is most likely because we have a third taxa (Hilgerti) included. As for Tajima's D, Pygerythrus shows strong signs of positive or balancing selection. Cynosuros and the Southern Expansion populations also show this, but not nearly as strong.
+
+##More Statistics
+This time we are using PopGenome to see if we tget the same numbers and to calculate Fu Li's D and F for a different perpective.
+Packages:
+```{r}
+install.packages("PopGenome")
+library(vcfR)
+library(PopGenome)
+library(pegas)
+```
+```{bash}
+mkdir UCP1
+cp se_UCP1.vcf UCP1/se_UCP1.vcf
+mkdir UCP2
+cp se_UCP2.vcf UCP2/se_UCP2.vcf
+mkdir UCP3
+cp se_UCP3.vcf UCP1/se_UCP3.vcf
+```
+
+
+Analysis:
+```{r}
+# Load SE UCP1 data
+UCP1genome <- readData("UCP1", format="VCF")
+UCP1genome
+neut <- neutrality.stats(UCP1genome)
+get.neutrality(neut)
+neut@Fu.Li.F
+neut@Fu.Li.D
+neut@Tajima.D
+# Load CYN UCP1 data
+UCP1genome <- readData("cyn_UCP1", format="VCF")
+UCP1genome
+neut <- neutrality.stats(UCP1genome)
+get.neutrality(neut)
+neut@Fu.Li.F
+neut@Fu.Li.D
+neut@Tajima.D
+# Load PYG UCP1 data
+UCP1genome <- readData("pyg_UCP1", format="VCF")
+UCP1genome
+neut <- neutrality.stats(UCP1genome)
+get.neutrality(neut)
+neut@Fu.Li.F
+neut@Fu.Li.D
+neut@Tajima.D
+UCP1genome <- readData("UCP1", format="VCF")
+UCP1genome
+neut <- neutrality.stats(UCP1genome)
+get.neutrality(neut)
+neut@Fu.Li.F
+neut@Fu.Li.D
+neut@Tajima.D
+# Load the UCP1 data
+UCP2genome <- readData("UCP2", format="VCF")
+UCP2genome
+neut <- neutrality.stats(UCP2genome)
+get.neutrality(neut)
+neut@Fu.Li.F
+neut@Fu.Li.D
+neut@Tajima.D
+# Load the UCP1 data
+UCP3genome <- readData("UCP3", format="VCF")
+UCP3genome
+neut <- neutrality.stats(UCP3genome)
+get.neutrality(neut)
+neut@Fu.Li.F
+neut@Fu.Li.D
+neut@Tajima.D
+```
+
+Results for vcfR, Pegas and Popgenome are all in accordance. Cool! We can feel confident about our results.
+
+###IHS ANALYSIS
+```{r}
+install.packages("rehh")
+library(rehh)
+```
+
+```{bash}
+vcftools --gzvcf se_UCP1.vcf.gz --IMPUTE
+```
+
+
+
+```{r,eval=F,echo=T, class.source="sccCode"}
+module load bcftools
+bcftools query -f'[%POS %REF %ALT\n]' pygUCP1.vcf.gz > outREFALT.INFO
+```
+
+Now you must create a very specifically formatted file that includes our Ancestral Allele estimates and the information we just pulled using our {bcftools} command above. For an example, see the `Documents/VervetAA/UCP1_AA_mod.txt`. Import these two files into Excel and make them match this format (you'll need to use the VLOOKUP command to reference positions in pulling in data, and add the three 'pipes' to the end of the AA data cell entries using the '&' operator). The final output you make is a file called 'UCP1_AA_mod' (this MUST be made using a text editor with no richtext, or that can make just a UNIX file, like AlphaX or Atom... otherwise the formatting of the .txt or .rtf will mess things up).
+
+Ok, now we need to modify these files so that they fit into the workflow for creating the haplotype and mapping files for {rehh}:
+```{r,eval=F,echo=T, class.source="sccCode"}
+more +2 AA_SE_UCP1 | awk '{if($3==$5) print$0,"yes";if($3!=$5) print$0,"no";}' | sed -e 's/\t/ /g' > out3.INFO
+join -j 2 -o 1.1,1.2,1.3,1.4,1.5,1.6,1.7,1.8 out3.INFO <(sort -k2 out.impute.legend) > out4.INFO
+paste out4.INFO out.impute.hap | awk '($5!="." && $5!="N" && $5!="-")' > merged.out
+awk '{for(i=7;i<=NF;i++)if($i==0)$i=3; else $i=4; print}' merged.out | awk '{if(ip[$2]=="") print; ip [$2]=1}' > merged2.out
+awk '{print $1"-"$2,$1,$2,"1","2"}' merged2.out > map_seUCP1.out
+sed -e '/yes/ s/3/1/g' -e '/yes/ s/4/2/g' -e '/no/ s/3/2/g' -e '/no/ s/4/1/g' merged2.out | cut -d " " -f7-  > merged3.out
+python -c "import sys; print('\n'.join(' '.join(c) for c in zip(*(l.split() for l in sys.stdin.readlines() if l.strip()))))" < merged3.out > merged4.out
+awk '{print NR " "$0}' merged4.out > hap_seUCP1.out
+```
+
+
+```{r,eval=F,echo=T, class.source="sccCode"}
+module load gcc
+module load R
+rstudio &
+```
+
+```{r, eval = F, echo = T}
+library(rehh)
+hap<-data2haplohh(hap_file="hap_seUCP1.out",map_file="map_seUCP1.out", recode.allele = TRUE)
+#change chromosome name:
+hap@chr.name<-"7"
+```
+
+It worked! Our dataset consists of 866 SNPs split into 98 haplotypes. Let's try this...
+
+```{r,eval = F, echo = T}
+ehh<-scan_hh(hap,limhaplo=2,limehh=0.5,limehhs=0.5,maxgap=NA,threads=1)
+```
+
+Retrieve our iHS scores:
+```{r,eval = F, echo = T}
+ihs <- ihh2ihs(ehh,freqbin=0.1)
+```
+
+And plot them:
+```{r,eval = F, echo = T}
+cr.se <- calc_candidate_regions(ihs,
+                                 threshold = 2.5,
+                                 pval = TRUE,
+                                 window_size = 1,
+                                 overlap = 0.9,
+                                 min_n_extr_mrk = 2)
+palette(c("red", "green"))
+manhattanplot(ihs, pval = TRUE, threshold = 2.5, main = "iHS (Chlorocebus pygerethrus)", cr = cr.se, chr.name="7")
+```
+
+Ok, this looks promising.  No huge hits, but then we wouldn't expect that with this sample size anyway... looks like two potential regions, with the most promising being the one around 87,507,000... where we do have a SNP out of HWE! That's great!
+
+Let's actually check the p-values:
+```{r,eval = F, echo = T}
+ihs$ihs
+```
+
+CAE7-87483580	7	87483580	1.960272922	1.301343677       downstream gene variant
+CAE7-87488227	7	87488227	1.962026973	1.303125353       downstream gene variant
+CAE7-87491726	7	87491726	1.960306930	1.301378209 (HWE) downstream gene variant
+CAE7-87494157	7	87494157	-2.192119073	1.547126735     intron variant
+CAE7-87494177	7	87494177	2.099533431	1.446482226 (HWE) intron variant
+CAE7-87495213	7	87495213	1.962848831	1.303960562 (HWE) intron variant
+CAE7-87498903	7	87498903	2.548805744	1.966204475       intron variant
+CAE7-87502255	7	87502255	-2.303058531	1.672119202     intron variant
+CAE7-87505287	7	87505287	-2.383874157	1.766205635     upstream gene variant
+CAE7-87506103	7	87506103	-2.148226930	1.498999209     upstream gene variant
+CAE7-87506414	7	87506414	-2.020422021	1.363114789     upstream gene variant
+CAE7-87508112	7	87508112	2.279942480	1.645678306       upstream gene variant
+CAE7-87508502	7	87508502	-2.082532759	1.428362968     upstream gene variant
+CAE7-87509248	7	87509248	-2.803867202	2.296762823     upstream gene variant
+CAE7-87510126	7	87510126	2.153982152	1.505267126       upstream gene variant
+
+##SNP-based Whole Genome Phylogeny of Vervets
+
+So to get the phylogeny we'll use for the regressions, we'll used a SNP-based phylogeny from the Svardal et al. VCF dataset. In this case, the easiest route may be to analyze the VCF file using the pipeline from [SNPhylo](https://bmcgenomics.biomedcentral.com/articles/10.1186/1471-2164-15-162), which is available in the *SCC*.
+
+Now first, we need to change the chromosome numbers in the VCF file (to erase the `CAE` prefix before the number itself). This is relatively easy once you've navigated to the folder containing the VCF file (here renamed *allvervets.vcf*:
+```{r,eval=F,echo=T, class.source="sccCode"}
+awk '{gsub(/^CAE/,""); print}' allvervets.vcf > allvervets_nocae.vcf
+```
+
+Now, we need to run this analysis as a batch file (it takes up A LOT of memory, and consistently crashes even on the SMGAL deskstop computers).  To do this, I've written a script, called `vervet_phylo1.sp` that we'll load to run a batch using the following code:
+
+```{r,eval=F,echo=T, class.source="sccCode"}
+qsub vervet_phylo1.sp
+```
+
+Ok... after much trial and tribulation (the whole SNPhylo pipeline is a bust, we get some useful outputs), we have a FASTA alignment from {SNPRelate}... let's import it and construct a tree using {phangorn} and {ape}:
+```{r,eval=F,echo=T}
+setwd("~/Desktop/vervAN333/snphylo")
+library(ape)
+library(phangorn)
+library(phytools)
+library(geiger)
+#Here we load in the fasta file output from SNPRelate:
+vervets <- read.dna("vervet_phylo1.fasta", format="fasta")
+#Here we convert it to phangorn format:
+vervets_phyDat <- phyDat(vervets, type = "DNA", levels = NULL)
+#Here we construct out distance matrix using a Jukes-Cantor mutation model:
+dnadist<-dist.ml(vervets_phyDat,model="JC69")
+#Here we construct a basic NJ tree and take a look at it:
+vervets_NJ<-NJ(dnadist)
+plot(vervets_NJ,main="Vervets NJ Tree")
+```
+
+Now, there are a couple ways to contruct a statistically valid ML tree from our data.  There's the *slow* way using {phangorn}:
+
+```{r,eval=F,echo=T}
+#Here we construct a ML tree from our data:
+fit<-pml(vervets_NJ,vervets_phyDat)
+#And here we optimize tree topology based on the JC mutation model:
+fitJC<-optim.pml(fit, model = "JC", rearrangement = "stochastic")
+logLik(fitJC)
+#Let's bootstrap this:
+bs<-bootstrap.pml(fitJC,bs=100,optNni=TRUE,multicore=TRUE,control=pml.control(trace=0))
+#And plot it:
+plotBS(midpoint(fitJC$tree),bs,p=50,type="p")
+#And let's export this in Newick format so we can make a pretty figure in FigTree:
+write.tree(bs,file="vervet_bootstrap.tre")
+```
+
+And a *fast* way using `raxml` in the {ips} package (haven't yet validated this as I don't have `raxml` on my laptop):
+
+```{r,eval=F,echo=T}
+library(ips)
+vervetrax<-read.dna("vervet_phylo1.fasta",format="fasta",as.matrix=TRUE)
+vervet.rax.jc<-raxml(dnadist,
+m="GTRGAMMAIX", # model
+f="a", # best tree and bootstrap
+p=1234, # random number seed
+x=2345, # random seed for rapid bootstrapping
+N=500, # number of bootstrap replicates
+file="vervet1", # name of output files
+exec="raxmlHPC-PTHREADS-SSE3", # name of executable, this means that RAXML must be downloaded and available, and the pathway must be listed here!
+threads=1
+)
+```
+
+Now, this tree is for ALL the vervets. To run our models only in the South African vervets (since that's where we're at for the ASP poster), we'll need to either 1) prune this tree down to just those animals represented in our analysis, or 2) rerun the above analysis with just the SA vervet sequences preserved in the FASTA file.
+
+Let's drop everything but the SA monkeys we have genomic data for. To do this, we need to create a vector of the tips we'd like to prune.
+
+To start, let's import the `vervet.population.panel` as a dataframe so we can easily maneuver around:
+```{r,eval=F,echo=T}
+verv.panel<-read.table("vervet.population.panel",header=T,sep="\t")
+summary(verv.panel)
+```
+
+Now let's use {dplyr} to get lists of individuals to prune from the tree so that we can run an analysis on just the southern expansion, and just South Africa:
+```{r,eval=F,echo=T}
+library(dplyr)
+vervpop<-tbl_df(verv.panel)
+nonpyg<-vervpop %>%
+  filter(country != "South Africa") %>%
+  select(sample) %>%
+  droplevels()
+nonpyg<-nonpyg$sample
+nonsouthern<-vervpop %>%
+  filter(taxon != "pygerythrus") %>%
+  filter(taxon != "cynosuros") %>%
+  filter(taxon != "hilgerti") %>%
+  select(sample) %>%
+  droplevels()
+nonsouthern<-nonsouthern$sample
+```
+
+Now let's import our tree block and 'best' tree:
+```{r,eval=F,echo=T}
+vervtree<-read.tree("vervet_bootstrap.tre")
+vervtree1<-fitJC$tree
+vervtree1<-as.phylo(vervtree1)
+write.tree(vervtree1,"vervtree1.tre")
+```
+
+And find our unwanted tips and drop them:
+```{r,eval=F,echo=T}
+ii<-sapply(nonpyg,grep,vervtree1$tip.label)
+nonpyg<-vervtree1$tip.label[ii]
+vervet.sa<-drop.tip(vervtree1,nonpyg)
+plot(vervet.sa)
+```
+
+And let's not forget to root our tree at the right place to indicate where the ancestral node was before we pruned:
+```{r,eval=F,echo=T}
+#let's see where the nodes are:
+plotTree(vervet.sa,node.numbers=TRUE)
+#Ok, let's root it at node 50
+vervet.sa<-root(vervet.sa,node=50)
+plot(vervet.sa)
+```
+
+We can do this for the whole tree block, as well:
+```{r,eval=F,echo=T}
+vervet.sa.block<-lapply(vervtree,drop.tip,tip=nonpyg)
+class(vervet.sa.block)<-"multiPhylo"
+```
+
+Let's do this for the southern block, too:
+```{r,eval=F,echo=T}
+iii<-sapply(nonsouthern,grep,vervtree1$tip.label)
+nonsouthern<-vervtree1$tip.label[iii]
+vervet.southern<-drop.tip(vervtree1,nonsouthern)
+plot(vervet.southern)
+vervet.southern.block<-lapply(vervtree,drop.tip,tip=nonsouthern)
+class(vervet.southern.block)<-"multiPhylo"
+#let's see where the nodes are:
+plotTree(vervet.southern,node.numbers=TRUE)
+#Ok, let's root it at node 74
+vervet.southern<-root(vervet.southern,node=74)
+plot(vervet.southern)
+```
+
+Ok, now we've got our full trees ready! The multiple trees constructed for our blocks will allow us to incorporate phylogenetic uncertainty into our analysis, as well (which is a good thing)!
+
+Now one more thing... we may need to just do this by population... if that's the case, we can simply cut the tree down to representative individuals in each cluster and use them to get a geographic hit in our database so that we can link climate to them.  Here are the population level trees for South Africa, with the populations in South Africa divided into Free State North (Sandveld, Soetdoring, Parys; represented by VSAC1015), Free State South (Gariep; represented by VSAB2012), Eastern Cape (represented by VSAL3005), and KwaZulu-Natal (represented by VSAF1015).
+
+```{r,eval=F,echo=T}
+keep<-c("VSAC1015","VSAB2012","VSAL3005","VSAF1015")
+region.tree<-drop.tip(vervtree1,vervtree1$tip.label[-match(keep, vervtree1$tip.label)])
+plot(region.tree)
+region.tree$tip.label[region.tree$tip.label=="VSAC1015"] <- "FS North"
+region.tree$tip.label[region.tree$tip.label=="VSAB2012"] <- "FS South"
+region.tree$tip.label[region.tree$tip.label=="VSAL3005"] <- "Eastern Cape"
+region.tree$tip.label[region.tree$tip.label=="VSAF1015"] <- "KwaZulu-Natal"
+plot(region.tree)
+```
+
+To do this for the southern expansion, we'd need to select an animal each from *cynosuros* and *hilgerti*.
+
+```{r,eval=F,echo=T}
+keep.se<-c("VSAC1015","VSAB2012","VSAL3005","VSAF1015","VEA1008","VZA2006")
+region.se.tree<-drop.tip(vervtree1,vervtree1$tip.label[-match(keep, vervtree1$tip.label)])
+plot(region.se.tree)
+region.se.tree$tip.label[region.se.tree$tip.label=="VSAC1015"] <- "FS North"
+region.se.tree$tip.label[region.se.tree$tip.label=="VSAB2012"] <- "FS South"
+region.se.tree$tip.label[region.se.tree$tip.label=="VSAL3005"] <- "Eastern Cape"
+region.se.tree$tip.label[region.se.tree$tip.label=="VSAF1015"] <- "KwaZulu-Natal"
+region.se.tree$tip.label[region.se.tree$tip.label=="VEA1008"] <- "Ethiopia"
+region.se.tree$tip.label[region.se.tree$tip.label=="VZA2006"] <- "Zambia"
+plot(region.se.tree)
+```
+
+###Conclusion
+
+We see molecular diversity in these genes both in terms of the three Chlorocebus species and in terms of the genes themselves using PCA, DAPC, and AMOVA methods.The highest levels of differentiation are between Hilgerti and the southern South African population.Neutrality statistics show potentially positive selection acting on UCP1 in Pygerythrus and Cynosuros, but we don’t have the statistical power to defend this. iHs analysis reveals several loci that may have undergone selective sweeps in the recent past. Loci 87,507,536 showed strongest signal of selective sweep and found to be out of HWE.
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

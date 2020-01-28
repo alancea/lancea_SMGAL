@@ -1,24 +1,9 @@
 ---
-title: "christian R markdown"
+title: "Vervet_IRX3"
+author: "Alexia Lancea"
+date: "10/24/2019"
 output: html_document
 ---
-
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```title: "Vervet_UCPs"
-author: "Christian Gagnon"
-date: "9/27/2019"
-output: html_document
----
----
-title: "Vervet_UCP1"
-author: "Christian Gagnon"
-date: "1/6/2019"
-output: html_document
----
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
 
 Version Control: 
 vcfR 1.8.0
@@ -50,51 +35,19 @@ geiger 	2.0.6.1
 Introduction: Uncoupling proteins (UCPs) 1, 2 and 3 are all induced by fatty acids, and are known to perform important metabolic functions in humans. UCP1 is the most widely studied of the UCPs, and contributes to non-shivering thermogenesis and metobolic promotion of healthy body weight. The functions of UCP2 and UCP3 are less well known, but are hypothesized to have a role in resting energy expenditure, contributing more in lipid regulation as fuel than thermoregulation. The goal of this study analyzes population structure of UCP1, UCP2 and UCP3 in various sample populations of vervets (Chlorocebus), making up a Southern Expansion meta-population. We also aim to investigate potential signs of selection within the UCP1 region of two vervet subspecies. The data from these samples were broken up into five subpopulations: that of the Pygerythrus, Cynosuros, and Hilgerti sub-species. We further separated the Pygerythrus sub-species into three populations according to the regions from which the individuals were sampled. We hypothesize that there would be strong differentiation between populations sampled from areas geographically far from one another, and that there would be signs of selection in the UCP1 region of populations sampled from South Africa, where the environmental conditions are the most extreme. 
 
 
-## R Markdown for Chlorocebus pygerythrus
 
-###UCP1 Coordinates
+###IRX3 Coordinates
 Hg38 UCP1 coordinates (UCSC)
-chr4:140,559,434-140,568,805
-Hg38 UCP1 coordinates (Ensembl)
-chr4:140,559,431-140,568,961
+chr16:54,283,304-54,286,787
 Vervet UCP1 coordinates (UCSC convert)
-chr7:87,492,140-87,502,530
-Vervet UCP1 coordinates (Ensembl)
-chr7:87,492,195-87,502,665
+chr5:40,066,185-40,069,661
 Vervet UCP1 +/- 10k 
-chr7:87,482,195-87,512,665
+chr5:40,056,185-40,079,661
 Rhesus macaque 10k
-chr5:140,601,940-140,632,450
+chr20:38,329,728-38,333,199
 
-###UCP2 Coordinates
-Hg38 UCP2 coordinates (UCSC)
-chr11:73,974,667-73,983,307
-Hg38 UCP2 coordinates (Ensembl)
--------
-Vervet UCP2 coordinates (UCSC convert)
-chr1:65,238,307-65,246,886
-Vervet UCP1 coordinates (Ensembl)
-------
-Vervet UCP1 +/- 10k 
-chr1:65,228,307-65,256,886
-Rhesus macaque 10k
-chr14:65,991,409-66,067,785
 
-###UCP3 Coordinates
-Hg38 UCP3 coordinates (UCSC)
-chr11:74,000,281-74,009,435
-Hg38 UCP1 coordinates (Ensembl)
-------
-Vervet UCP1 coordinates (UCSC convert)
-chr1:65,269,611-65,279050
-Vervet UCP1 coordinates (Ensembl)
-------
-Vervet UCP1 +/- 10k 
-chr2:65,259,611-65,289,050
-Rhesus macaque 10k
-chr14:66,075,575-66,104,223
-
-###Unix code for obtaining UCP1, UCP2 and UCP3 regions. 
+###Unix code for obtaining IRX3 region. 
 
 We are going to look at three gene homologs: UCP1, UCP2, and UCP3. First, we need to isolate each of the three genes separately from the vervet genome data. Then, we will isolate them for the three taxa of the Southern Expansion populations: Cynosuros, Hilgerti, and Pygerythrus. We will also isolate the genes separately for cynosuros and pygerythrus for finding neutrality statistics to look for selection (we are not doing this for hilgerti because there are too few samples). Lastly, we will get a list of variants from each isolated gene to use for our linkage disequillibrium tests. We're going to do this all using the tabix module on the SCC: 
 
@@ -104,28 +57,13 @@ module load vcftools
 #Download vervet .vcf and index to gatk directory
 wget https://vervetmonkeygmi.blob.core.windows.net/publicationdata/163_201701_UG_vervet_monkey_SNPs_all_chrom_beagle_shapeit.vcf.gz
 wget https://vervetmonkeygmi.blob.core.windows.net/publicationdata/163_201701_UG_vervet_monkey_SNPs_all_chrom_beagle_shapeit.vcf.gz.tbi
-#UCP1
-tabix -h  163_201701_UG_vervet_monkey_SNPs_all_chrom_beagle_shapeit.vcf.gz CAE7:87482195-87512665 | bgzip -c > ALL_UPC1.vcf.gz #isolate UCP1 region for all samples
-vcf-subset -c southernexpansion_list ALL_UPC1.vcf.gz | bgzip  -c > se_UCP1.vcf.gz #isolate only southern expansion samples
-#vcf-subset -c cynosuros_list ALL_UPC1.vcf.gz | bgzip  -c > cyn_UCP1.vcf.gz #isolate cynosuros samples for neutrality stats
-#vcf-subset -c pygerythrus_list ALL_UPC1.vcf.gz | bgzip  -c > pyg_UCP1.vcf.gz #isolate pygerythrus samples for neutrality stats
-bcftools query -f '%CHROM\t%POS\t%REF\t%ALT[\t%SAMPLE=%GT]\n' se_UCP1.vcf.gz -o se_UCP1_bcftoolsoutput.txt
-zgrep -v "^##" se_UCP1.vcf.gz | cut -f1-3 > se_UCP1_loci.txt #Get list of variant sites for LD
-#UCP2
-tabix -h  163_201701_UG_vervet_monkey_SNPs_all_chrom_beagle_shapeit.vcf.gz CAE1:65228307-65256886 | bgzip -c > ALL_UPC2.vcf.gz #isolate UCP2 region for all samples
-vcf-subset -c southernexpansion_list ALL_UPC2.vcf.gz | bgzip  -c > se_UCP2.vcf.gz #isolate only southern expansion samples
-vcf-subset -c cynosuros_list ALL_UPC2.vcf.gz | bgzip  -c > cyn_UCP2.vcf.gz #isolate cynosuros samples for neutrality stats
-vcf-subset -c pygerythrus_list ALL_UPC2.vcf.gz | bgzip  -c > pyg_UCP2.vcf.gz #isolate pygerythrus samples for neutrality stats
-bcftools query -f '%CHROM\t%POS\t%REF\t%ALT[\t%SAMPLE=%GT]\n' se_UCP2.vcf.gz -o se_UCP2_bcftoolsoutput.txt
-zgrep -v "^##" se_UCP2.vcf.gz | cut -f1-3 > UCP2_loci.txt #Get list of variant sites for LD
-#UCP3
-tabix -h  163_201701_UG_vervet_monkey_SNPs_all_chrom_beagle_shapeit.vcf.gz CAE2:65259611-65289050 | bgzip -c > ALL_UPC3.vcf.gz #isolate UCP3 region for all samples
-vcf-subset -c southernexpansion_list ALL_UPC3.vcf.gz | bgzip  -c > se_UCP3.vcf.gz #isolate only southern expansion samples
-vcf-subset -c cynosuros_list ALL_UPC3.vcf.gz | bgzip  -c > cyn_UCP3.vcf.gz #isolate cynosuros samples for neutrality stats
-vcf-subset -c pygerythrus_list ALL_UPC3.vcf.gz | bgzip  -c > pyg_UCP3.vcf.gz #isolate pygerythrus samples for neutrality stats
-bcftools query -f '%CHROM\t%POS\t%REF\t%ALT[\t%SAMPLE=%GT]\n' se_UCP3.vcf.gz -o se_UCP3_bcftoolsoutput.txt
-zgrep -v "^##" se_UCP3.vcf.gz | cut -f1-3 > UCP3_loci.txt #Get list of variant sites for LD
+#IRX3
+tabix -h  163_201701_UG_vervet_monkey_SNPs_all_chrom_beagle_shapeit.vcf.gz CAE5:40,056,185-40,079,661 | bgzip -c > ALL_IRX3.vcf.gz #isolate IRX3 region for all samples
+vcf-subset -c pyg_list_nobot_noi ALL_IRX3.vcf.gz | bgzip  -c > za_IRX3.vcf.gz #isolate only pygerethrus samples
+bcftools query -f '%CHROM\t%POS\t%REF\t%ALT[\t%SAMPLE=%GT]\n' za_IRX3.vcf.gz -o za_IRX3_bcftoolsoutput.txt
+zgrep -v "^##" za_IRX3.vcf.gz | cut -f1-3 > za_IRX3_loci.txt #Get list of variant sites for LD
 ```
+
 ### Population Structure
 
 We will begin by making a DAPC plot to show differentiation at the taxonomic level (Cynosuros, Pygerythrus, and Hilgerti) as well as the population level (Cynosuros, Hilgerti, and then the regions Pygerythrus individuals were sampled from: Free State, KwaZulu-Natal, and Eastern Cape). We will also test the significane of the differentiation that these show by performing Adonis and AMOVA on the data.
